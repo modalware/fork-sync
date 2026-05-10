@@ -1,0 +1,92 @@
+name: Sync dicom3tools Snapshots
+
+on:
+  schedule:
+    - cron: '0 3 1 * *'  # Monthly on 1st at UTC 3:00 (JST 12:00)
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dicom3tools
+        uses: actions/checkout@v4
+        with:
+          repository: modalware/dicom3tools
+          token: ${{ secrets.SYNC_TOKEN }}
+          fetch-depth: 0
+
+      - name: Find and apply new snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BASE_URL="https://dclunie.com/dicom3tools/workinprogress"
+
+          # Get the latest snapshot timestamp already in the repo
+          LATEST_TS=$(git tag --sort=version:refname | grep -oE '[0-9]{14}' | tail -1 || echo "")
+          echo "Latest snapshot in repo: ${LATEST_TS:-none}"
+
+          # Scrape the index page for all snapshot filenames
+          SNAPSHOTS=$(curl -sf "$BASE_URL/index.html" \
+            | grep -oE 'dicom3tools_1\.00\.snapshot\.[0-9]{14}\.tar\.bz2' \
+            | sort -u)
+
+          echo "Snapshots available on server:"
+          echo "$SNAPSHOTS"
+
+          # Keep only snapshots newer than the latest tag
+          NEW_SNAPSHOTS=""
+          while IFS= read -r snap; do
+            TS=$(echo "$snap" | grep -oE '[0-9]{14}')
+            if [ -z "$LATEST_TS" ] || [[ "$TS" > "$LATEST_TS" ]]; then
+              NEW_SNAPSHOTS+="$snap"$'\n'
+            fi
+          done <<< "$SNAPSHOTS"
+          NEW_SNAPSHOTS=$(printf '%s' "$NEW_SNAPSHOTS" | grep -v '^$' | sort)
+
+          if [ -z "$NEW_SNAPSHOTS" ]; then
+            echo "No new snapshots found. Nothing to do."
+            exit 0
+          fi
+
+          echo "New snapshots to apply (oldest first):"
+          echo "$NEW_SNAPSHOTS"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          while IFS= read -r snap; do
+            [ -z "$snap" ] && continue
+            TAG=$(echo "$snap" | sed 's/^dicom3tools_//; s/\.tar\.bz2$//')
+            echo ""
+            echo "=== $snap  =>  tag: $TAG ==="
+
+            # Download
+            curl -sf -O "$BASE_URL/$snap"
+
+            # Determine top-level directory inside the tarball
+            TOP_DIR=$(tar tjf "$snap" 2>/dev/null | head -1 | sed 's|/.*||')
+
+            # Replace all tracked content
+            git rm -rf --quiet .
+            tar xjf "$snap"
+            rm -f "$snap"
+
+            # Flatten top-level directory if present
+            if [ -n "$TOP_DIR" ] && [ -d "$TOP_DIR" ]; then
+              shopt -s dotglob nullglob
+              mv "$TOP_DIR"/* . 2>/dev/null || true
+              rmdir "$TOP_DIR" 2>/dev/null || true
+              shopt -u dotglob nullglob
+            fi
+
+            git add -A
+            git commit -m "snapshot: $TAG"
+            git tag "$TAG"
+            echo "Committed and tagged: $TAG"
+          done <<< "$NEW_SNAPSHOTS"
+
+          git push origin HEAD --tags
+          echo ""
+          echo "Done. All new snapshots pushed."
