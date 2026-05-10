@@ -62,8 +62,9 @@ jobs:
             echo ""
             echo "=== $snap  =>  tag: $TAG ==="
 
-            # Download
-            curl -sf -O "$BASE_URL/$snap"
+            # Download (no -s so errors are visible; -L follows redirects; retry on failure)
+            curl -fL --retry 3 --retry-delay 10 --max-time 120 \
+              -o "$snap" "$BASE_URL/$snap"
 
             # Determine top-level directory inside the tarball
             TOP_DIR=$(tar tjf "$snap" 2>/dev/null | head -1 | sed 's|/.*||')
