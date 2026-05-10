@@ -66,23 +66,18 @@ jobs:
             curl -fL --retry 3 --retry-delay 10 --max-time 120 \
               -o "$snap" "$BASE_URL/$snap"
 
-            # Verify file type
-            echo "File type: $(file "$snap")"
-            ls -lh "$snap"
-
-            # Determine top-level directory inside the tarball (auto-detect compression)
-            TOP_DIR=$(tar tf "$snap" | head -1 | sed 's|/.*||')
-            echo "Top-level dir in tarball: '${TOP_DIR}'"
+            # Determine top-level directory (disable pipefail: head -1 causes SIGPIPE to tar)
+            set +o pipefail
+            TOP_DIR=$(tar tf "$snap" 2>/dev/null | head -1 | sed 's|/.*||')
+            set -o pipefail
 
             # Replace all tracked content
             git rm -rf --quiet . || true
-            echo "Extracting..."
             tar xf "$snap"
             rm -f "$snap"
-            echo "Extraction done. Contents:"
-            ls -la | head -20
 
             # Flatten top-level directory if present
+
             if [ -n "$TOP_DIR" ] && [ -d "$TOP_DIR" ]; then
               shopt -s dotglob nullglob
               mv "$TOP_DIR"/* . 2>/dev/null || true
