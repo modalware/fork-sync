@@ -1,0 +1,33 @@
+name: Sync Upstream Forks
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 毎日 UTC 2:00 (JST 11:00)
+  workflow_dispatch:       # 手動実行
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        repo:
+          - dicom-validator-ts
+          - cornerstone3D
+          - dicom3tools
+          - dcmjs
+          - dwv
+          - dcmtk
+          - dicomweb-client
+          - dicom-validator
+          - pydicom
+          - pynetdicom
+          - dicomParser
+          - DVTk
+      fail-fast: false
+      max-parallel: 4
+    name: Sync ${{ matrix.repo }}
+    steps:
+      - name: Sync fork with upstream
+        run: gh repo sync modalware/${{ matrix.repo }} --force
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
