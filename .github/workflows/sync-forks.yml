@@ -27,6 +27,20 @@ jobs:
     name: Sync ${{ matrix.repo }}
     steps:
       - name: Sync fork with upstream
-        run: gh repo sync modalware/${{ matrix.repo }} --force
+        run: |
+          # Sync default branch
+          gh repo sync modalware/${{ matrix.repo }} --force
+
+          # Sync tags (gh repo sync does not sync tags)
+          PARENT=$(gh api repos/modalware/${{ matrix.repo }} --jq '.parent.full_name // empty')
+          if [ -n "$PARENT" ]; then
+            mkdir tag-sync && cd tag-sync
+            git init -q
+            git remote add fork "https://x-access-token:${GH_TOKEN}@github.com/modalware/${{ matrix.repo }}.git"
+            git remote add upstream "https://github.com/${PARENT}.git"
+            git fetch upstream 'refs/tags/*:refs/tags/*' --no-recurse-submodules -q
+            git push fork 'refs/tags/*:refs/tags/*' --force -q
+            cd .. && rm -rf tag-sync
+          fi
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
