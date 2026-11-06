@@ -43,7 +43,7 @@ jobs:
               NEW_SNAPSHOTS+="$snap"$'\n'
             fi
           done <<< "$SNAPSHOTS"
-          NEW_SNAPSHOTS=$(printf '%s' "$NEW_SNAPSHOTS" | grep -v '^$' | sort)
+          NEW_SNAPSHOTS=$(printf '%s' "$NEW_SNAPSHOTS" | { grep -v '^$' || true; } | sort)
 
           if [ -z "$NEW_SNAPSHOTS" ]; then
             echo "No new snapshots found. Nothing to do."
