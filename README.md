@@ -36,6 +36,10 @@ Each new snapshot is committed and tagged as `1.00.snapshot.YYYYMMDDHHMMSS`.
 
 Manual run: Actions tab → "Sync dicom3tools Snapshots" → "Run workflow"
 
+### Keepalive
+
+GitHub disables scheduled workflows in public repositories after 60 days without repository activity. This workflow pushes an empty commit to this repo on the 15th of each month (JST 13:00) to keep the sync workflows enabled. It uses the built-in `GITHUB_TOKEN`, not `SYNC_TOKEN`.
+
 ## Setup
 
 Register a Fine-grained Personal Access Token as a repository secret named `SYNC_TOKEN`.
